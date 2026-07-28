@@ -1,0 +1,50 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <title>二维化学结构验收样例</title>
+  <link rel="stylesheet" href="structure-preview.css">
+</head>
+<body>
+  <header>
+    <a href="index.html">← 返回学习系统</a>
+    <span>STRUCTURE REVIEW · 01</span>
+    <h1>ChemDraw 2D 风格验收样例</h1>
+    <p>由SMILES保存分子信息，使用专业二维化学绘图库生成标准出版式SVG。碳骨架与相连氢按ACS常用规范省略，杂原子与必要氢明确显示。</p>
+  </header>
+
+  <main>
+    <article>
+      <div class="meta"><span>LS01</span><div><h2>Phthalsäureanhydrid</h2><p>邻苯二甲酸酐 · PSA</p></div></div>
+      <svg id="mol-psa" role="img" aria-label="Phthalsäureanhydrid chemical structure"></svg>
+      <code>SMILES · O=C1OC(=O)c2ccccc12</code>
+    </article>
+
+    <article>
+      <div class="meta"><span>LS01</span><div><h2>Trimethylolpropan</h2><p>三羟甲基丙烷 · TMP</p></div></div>
+      <svg id="mol-tmp" role="img" aria-label="Trimethylolpropan chemical structure"></svg>
+      <code>SMILES · CCC(CO)(CO)CO</code>
+    </article>
+
+    <article>
+      <div class="meta"><span>LS05</span><div><h2>Isophorondiisocyanat</h2><p>异佛尔酮二异氰酸酯 · IPDI（未指定立体异构体）</p></div></div>
+      <svg id="mol-ipdi" role="img" aria-label="Isophorondiisocyanat chemical structure"></svg>
+      <code>SMILES · CC1(C)CC(N=C=O)CC(C)(CN=C=O)C1</code>
+    </article>
+  </main>
+
+  <aside>
+    <b>验收标准</b>
+    <span>规则环形</span><span>标准键角</span><span>平行双键</span><span>无原子重叠</span><span>无键交叉</span><span>纯SVG矢量</span>
+  </aside>
+
+  <footer>
+    <strong>The default visualization must replicate the appearance of a ChemDraw-generated 2D publication-quality chemical structure, not an automatically generated atom graph.</strong>
+    <p>The layout should be visually indistinguishable from structures found in university organic chemistry textbooks and lecture slides.</p>
+  </footer>
+
+  <script src="vendor/smiles-drawer.min.js"></script>
+  <script src="structure-preview.js"></script>
+</body>
+</html>
