@@ -1,8 +1,7 @@
 const $=s=>document.querySelector(s), $$=s=>[...document.querySelectorAll(s)];
-const bank=window.QUESTION_BANK, LD=window.LEARNING_DATA, KEY="lacklabor-master-ls01-10-v3";
+const bank=window.QUESTION_BANK, LD=window.LEARNING_DATA, KEY="lacklabor-master-ls01-10-v5";
 let S=JSON.parse(localStorage.getItem(KEY)||'{"mode":"learn","chapter":1,"qIndex":0,"answers":{},"mastered":[],"wrong":[],"lab":{},"why":{},"exam":[],"examPos":0}');
 S.favorite=S.favorite||[];
-S.audit=S.audit||{chapter:"all",error:"all",page:""};
 S.qaDirectoryOpen=S.qaDirectoryOpen??true;
 S.currentQuestionId=S.currentQuestionId||null;
 const idMigration=window.QUESTION_ID_MIGRATION||{};
@@ -36,7 +35,7 @@ function bindNav(){
   $$("[data-chapter]").forEach(b=>b.onclick=()=>{S.chapter=Number(b.dataset.chapter);save();render()});
   $$("[data-go]").forEach(b=>b.onclick=()=>mode("learn"));
 }
-function render(){({learn:renderLearn,qa:renderQA,chem:renderChem,lab:renderLab,map:renderMap,exam:renderExam,audit:renderAudit}[S.mode]||renderLearn)();bindNav()}
+function render(){({learn:renderLearn,qa:renderQA,chem:renderChem,lab:renderLab,map:renderMap,exam:renderExam}[S.mode]||renderLearn)();bindNav()}
 
 function renderLearn(){
  const c=ch(S.chapter), p=progress(c.n), qs=bank.filter(q=>q.chapter===c.n), sample=qs.slice(0,6);
@@ -98,19 +97,6 @@ function renderQA(){
  $("#compare").onclick=()=>compareAnswer(q);$("#answerInput").onkeydown=e=>{if((e.ctrlKey||e.metaKey)&&e.key==="Enter")compareAnswer(q)};
 }
 
-function renderAudit(){
- const all=window.QUESTION_AUDIT||[], chapter=S.audit.chapter, error=S.audit.error, page=String(S.audit.page||"").trim();
- const errorTypes=[...new Set(all.flatMap(x=>x.errors))].sort();
- const rows=all.filter(x=>(chapter==="all"||String(x.chapter)===String(chapter))&&(error==="all"||x.errors.includes(error))&&(!page||x.pages.includes(Number(page))));
- const summary=window.QUESTION_QUALITY_SUMMARY||{};
- app.innerHTML=shell("题库审查","开发检查页面：来源未核实、字段残片和答案碎片不会进入教授问答或考试。",`
- <section class="audit-summary"><article><span>原始题目</span><b>${summary.raw||all.length}</b></article><article><span>已验证并启用</span><b>${summary.active||0}</b></article><article><span>已隔离</span><b>${summary.rejected||0}</b></article></section>
- <div class="audit-filters"><label>章节<select id="auditChapter"><option value="all">全部</option>${LD.chapters.map(c=>`<option value="${c.n}" ${String(chapter)===String(c.n)?"selected":""}>LS${String(c.n).padStart(2,"0")}</option>`).join("")}</select></label><label>错误类型<select id="auditError"><option value="all">全部</option>${errorTypes.map(x=>`<option value="${x}" ${error===x?"selected":""}>${x}</option>`).join("")}</select></label><label>PDF页码<input id="auditPage" inputmode="numeric" value="${esc(page)}" placeholder="例如 29"></label><span>${rows.length} 条</span></div>
- <div class="audit-table"><table><thead><tr><th>ID</th><th>章节</th><th>页码</th><th>问题</th><th>答案摘要</th><th>状态</th><th>错误原因</th></tr></thead><tbody>${rows.map(x=>`<tr><td>${esc(x.legacyId||"—")}</td><td>LS${String(x.chapter).padStart(2,"0")}</td><td>${x.pages.join(", ")||"—"}</td><td>${esc(x.question)}</td><td>${esc(x.answer.slice(0,150))}</td><td><span class="${x.errors.length?"review":"verified"}">${x.status}</span></td><td>${x.errors.map(e=>`<code>${e}</code>`).join(" ")||"—"}</td></tr>`).join("")}</tbody></table></div>`);
- $("#auditChapter").onchange=e=>{S.audit.chapter=e.target.value;save();renderAudit()};
- $("#auditError").onchange=e=>{S.audit.error=e.target.value;save();renderAudit()};
- $("#auditPage").oninput=e=>{S.audit.page=e.target.value;save();clearTimeout(window.auditTimer);window.auditTimer=setTimeout(renderAudit,220)};
-}
 function toggle(a,x){let i=a.indexOf(x);i<0?a.push(x):a.splice(i,1)}
 function compareAnswer(q){
  let a=$("#answerInput").value.toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g,""), hit=q.keywords.filter(k=>a.includes(k.toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g,""))), miss=q.keywords.filter(k=>!hit.includes(k)), score=Math.round(hit.length/q.keywords.length*100);
@@ -195,5 +181,5 @@ function statsView(){let per=LD.chapters.map(c=>{let qs=bank.filter(q=>q.chapter
 
 $("#resetAll").onclick=()=>{if(confirm("删除所有答案、进度、错题和实验记录？")){localStorage.removeItem(KEY);location.reload()}};
 window.addEventListener("hashchange",()=>{const m=location.hash.match(/^#\/chapter\/LS(\d{2})\/question\/(LS\d{2}-Q\d{3})$/i);if(m&&bank.some(q=>q.id===m[2].toUpperCase())){S.mode="qa";S.currentQuestionId=m[2].toUpperCase();S.chapter=Number(m[1]);save();render()}});
-$("#bankSummary").textContent=`${bank.length} 已验证 Fragen · LS01–LS10 · ${window.QUESTION_QUALITY_SUMMARY?.rejected||0} 道待审查题已隔离 · 本地保存`;
+$("#bankSummary").textContent=`${bank.length} 课件重点fragen · LS01–LS10 · 来源页码已绑定 · 本地保存`;
 render();
