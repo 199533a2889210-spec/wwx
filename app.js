@@ -1,6 +1,20 @@
 const $=s=>document.querySelector(s), $$=s=>[...document.querySelectorAll(s)];
 const bank=window.QUESTION_BANK, LD=window.LEARNING_DATA, KEY="lacklabor-master-ls01-10-v3";
 let S=JSON.parse(localStorage.getItem(KEY)||'{"mode":"learn","chapter":1,"qIndex":0,"answers":{},"mastered":[],"wrong":[],"lab":{},"why":{},"exam":[],"examPos":0}');
+S.favorite=S.favorite||[];
+S.audit=S.audit||{chapter:"all",error:"all",page:""};
+S.qaDirectoryOpen=S.qaDirectoryOpen??true;
+S.currentQuestionId=S.currentQuestionId||null;
+const idMigration=window.QUESTION_ID_MIGRATION||{};
+const migrateId=id=>idMigration[id]||id;
+S.mastered=[...new Set((S.mastered||[]).map(migrateId))];
+S.wrong=[...new Set((S.wrong||[]).map(migrateId))];
+S.favorite=[...new Set((S.favorite||[]).map(migrateId))];
+S.answers=Object.fromEntries(Object.entries(S.answers||{}).map(([id,value])=>[migrateId(id),value]));
+const hashMatch=location.hash.match(/^#\/chapter\/LS(\d{2})\/question\/(LS\d{2}-Q\d{3})$/i);
+if(hashMatch&&bank.some(q=>q.id===hashMatch[2].toUpperCase())){
+ S.mode="qa";S.currentQuestionId=hashMatch[2].toUpperCase();S.chapter=Number(hashMatch[1]);
+}
 S.chem=S.chem||{selected:null,view:"chemdraw",ls:"all",search:"",selectionVersion:2};
 if(!S.chem.selectionVersion){
  if(S.chem.selected==="chem-1")S.chem.selected=null;
@@ -22,7 +36,7 @@ function bindNav(){
   $$("[data-chapter]").forEach(b=>b.onclick=()=>{S.chapter=Number(b.dataset.chapter);save();render()});
   $$("[data-go]").forEach(b=>b.onclick=()=>mode("learn"));
 }
-function render(){({learn:renderLearn,qa:renderQA,chem:renderChem,lab:renderLab,map:renderMap,exam:renderExam}[S.mode]||renderLearn)();bindNav()}
+function render(){({learn:renderLearn,qa:renderQA,chem:renderChem,lab:renderLab,map:renderMap,exam:renderExam,audit:renderAudit}[S.mode]||renderLearn)();bindNav()}
 
 function renderLearn(){
  const c=ch(S.chapter), p=progress(c.n), qs=bank.filter(q=>q.chapter===c.n), sample=qs.slice(0,6);
@@ -41,28 +55,61 @@ function renderLearn(){
   <section><div class="section-title"><div><p class="kicker">COMMON CONFUSIONS</p><h2>老师最喜欢抓的混淆点</h2></div></div><div class="confusion-grid">${LD.confusions.filter(x=>x[3].includes(`LS${String(c.n).padStart(2,"0")}`)||x[3].includes(`LS${c.n}`)).map(x=>`<article><small>${x[1]}</small><h3>${x[0]}</h3><p>${x[2]}</p><span>${x[3]}</span></article>`).join("")||"<p>本章的易错点已放在对应教授问答中。</p>"}</div></section>
  </div></div>`, `<div class="head-progress"><b>${p.p}%</b><span>本章掌握 ${p.m}/${p.n}</span></div>`);
  $(".why-btn").onclick=()=>$("#chapterWhy").classList.toggle("hidden");
- $$("[data-open-q]").forEach(b=>b.onclick=()=>{S.qIndex=Number(b.dataset.openQ);mode("qa")});
+ $$("[data-open-q]").forEach(b=>b.onclick=()=>{const target=bank[Number(b.dataset.openQ)];if(target)setCurrentQuestion(target.id);mode("qa")});
  $$("[data-jump-map]").forEach(b=>b.onclick=()=>{S.chapter=Number(b.dataset.jumpMap);mode("map")});
 }
 
+function setCurrentQuestion(id,{replace=false}={}){
+ const idx=bank.findIndex(q=>q.id===id);
+ if(idx<0)return;
+ const q=bank[idx];S.qIndex=idx;S.currentQuestionId=q.id;S.chapter=q.chapter;save();
+ const hash=`#/chapter/LS${String(q.chapter).padStart(2,"0")}/question/${q.id}`;
+ history[replace?"replaceState":"pushState"]({questionId:q.id},"",hash);
+}
+function questionShortTitle(q){return q.qDe.replace(/\?$/,"").replace(/^(Was|Warum|Wie|Welche|Wodurch|Wovon|Beschreiben Sie|Erklären Sie)\s+/i,"").slice(0,68)}
 function renderQA(){
- let q=bank[Math.max(0,Math.min(S.qIndex,bank.length-1))], idx=bank.indexOf(q), mastered=S.mastered.includes(q.id), wrong=S.wrong.includes(q.id);
+ let q=bank.find(x=>x.id===S.currentQuestionId)||bank[Math.max(0,Math.min(S.qIndex,bank.length-1))]||bank[0];
+ if(!q){app.innerHTML=shell("教授问答模式","当前没有通过来源审查的题目。","<p>请在题库审查页面处理来源不足的问题。</p>");return}
+ let idx=bank.indexOf(q), mastered=S.mastered.includes(q.id), wrong=S.wrong.includes(q.id), favorite=S.favorite.includes(q.id);
+ if(S.currentQuestionId!==q.id)setCurrentQuestion(q.id,{replace:true});
+ const chapterQuestions=bank.filter(x=>x.chapter===q.chapter), chapterPos=chapterQuestions.findIndex(x=>x.id===q.id);
  const sections=[["标准答案 · Musterantwort",q.answer],["中文解析 · Erklärung",q.analysis],["结构式/反应路径",q.visual],["为什么老师问",q.why],["如果不这样做",q.ifNot],["关联章节",q.links]];
  app.innerHTML=shell("教授问答模式","一页一题。先用德语回答，再逐层打开原因与追问。",`
- <div class="qa-toolbar"><label>章节<select id="qChapter"><option value="all">全部10章</option>${LD.chapters.map(c=>`<option value="${c.n}" ${c.n===q.chapter?"selected":""}>LS${String(c.n).padStart(2,"0")} · ${c.t}</option>`).join("")}</select></label><span>${idx+1} / ${bank.length}</span><div class="mini-progress"><i style="width:${S.mastered.length/bank.length*100}%"></i></div></div>
- <div class="qa-layout"><section class="qa-main">
-  <article class="question"><div><span>LS${String(q.chapter).padStart(2,"0")} · ${q.kind}</span><small>${q.source}</small></div><h2>${esc(q.qDe)} ${say(q.qDe)}</h2><p>${esc(q.qZh)}</p></article>
+ <div class="qa-toolbar"><button id="toggleDirectory">问题目录</button><label>跳转<select id="qJump">${chapterQuestions.map((x,i)=>`<option value="${x.id}" ${x.id===q.id?"selected":""}>${i+1}. ${esc(questionShortTitle(x))}</option>`).join("")}</select></label><span>LS${String(q.chapter).padStart(2,"0")} · 第 ${chapterPos+1} / ${chapterQuestions.length} 题</span><div class="mini-progress"><i style="width:${S.mastered.length/bank.length*100}%"></i></div></div>
+ <div class="qa-workspace ${S.qaDirectoryOpen?"":"directory-closed"}"><aside class="question-directory">
+  <h3>章节目录</h3>${LD.chapters.map(c=>{const qs=bank.filter(x=>x.chapter===c.n),done=qs.filter(x=>S.mastered.includes(x.id)).length,fav=qs.filter(x=>S.favorite.includes(x.id)).length,w=qs.filter(x=>S.wrong.includes(x.id)).length;return `<section class="${c.n===q.chapter?"open":""}"><button data-dir-ch="${c.n}"><b>LS${String(c.n).padStart(2,"0")} ${c.t}</b><small>${qs.length}题 · ${done}完成 · ${fav}收藏 · ${w}错题</small></button>${c.n===q.chapter?`<div>${qs.map((x,i)=>`<button data-question-id="${x.id}" class="${x.id===q.id?"active":""}"><span>${String(i+1).padStart(2,"0")}</span><div><b>${esc(questionShortTitle(x))}</b><small>${x.sourceMeta?.sourcePages?.length?`PDF S. ${x.sourceMeta.sourcePages.join(", ")}`:"课程基础路径"} · ${x.kind}</small></div></button>`).join("")}</div>`:""}</section>`}).join("")}
+ </aside><div class="qa-layout"><section class="qa-main">
+  <article class="question"><div><span>${q.id} · ${q.kind}</span><small>${q.sourceMeta?.sourcePages?.length?`PDF-Seite ${q.sourceMeta.sourcePages.join(", ")}`:q.source}</small></div><h2>${esc(q.qDe)} ${say(q.qDe)}</h2><p>${esc(q.qZh)}</p></article>
   <div class="why-strip"><b>WHY</b><span>${esc(q.why)}</span><button id="toggleWhy">展开全部原因</button></div>
   <div class="accordions">${sections.filter(x=>x[1]).map((x,i)=>`<section class="acc ${i?"closed":""}"><button><b>${i+1}. ${x[0]}</b><span>${i?"+":"−"}</span></button><div>${esc(x[1])}${i===0?say(x[1]):""}</div></section>`).join("")}</div>
-  <div class="q-actions"><button id="prevQ">← 上一题</button><button id="markWrong" class="${wrong?"warn":""}">${wrong?"⚑ 已加入错题":"加入错题"}</button><button id="masterQ" class="${mastered?"done":""}">${mastered?"✓ 已掌握":"标记掌握"}</button><button id="nextQ">下一题 →</button></div>
- </section><aside class="answer-box"><p class="kicker">DEINE ANTWORT</p><h2>你的德语答案</h2><textarea id="answerInput" placeholder="Antwort auf Deutsch…">${esc(S.answers[q.id]||"")}</textarea><button id="compare" class="primary">与标准答案对比</button><div id="compareResult"></div><p>⌘/Ctrl + Enter 对比</p></aside></div>`);
+  <section class="source-card"><b>来源课件</b><p>${esc(q.sourceMeta?.chapter||`LS${String(q.chapter).padStart(2,"0")}`)} · ${esc(q.sourceMeta?.slideTitle||q.title)} · ${q.sourceMeta?.sourcePages?.length?`PDF S. ${q.sourceMeta.sourcePages.join(", ")}`:"课程基础路径"}</p><small>${esc(q.sourceMeta?.basis||"对应课件页")}</small></section>
+  <div class="q-actions"><button id="prevQ">← 上一题</button><button id="openDirectory">问题目录</button><button id="favoriteQ">${favorite?"★ 已收藏":"☆ 收藏"}</button><button id="markWrong" class="${wrong?"warn":""}">${wrong?"⚑ 已加入错题":"加入错题"}</button><button id="masterQ" class="${mastered?"done":""}">${mastered?"✓ 已掌握":"标记掌握"}</button><button id="nextQ">下一题 →</button></div>
+ </section><aside class="answer-box"><p class="kicker">DEINE ANTWORT</p><h2>你的德语答案</h2><textarea id="answerInput" placeholder="Antwort auf Deutsch…">${esc(S.answers[q.id]||"")}</textarea><button id="compare" class="primary">与标准答案对比</button><div id="compareResult"></div><p>⌘/Ctrl + Enter 对比</p></aside></div></div>`);
  $$(".acc>button").forEach(b=>b.onclick=()=>{let a=b.parentElement;a.classList.toggle("closed");b.lastElementChild.textContent=a.classList.contains("closed")?"+":"−"});
  $("#toggleWhy").onclick=()=>$$(".acc").forEach(a=>a.classList.remove("closed"));
  $("#answerInput").oninput=e=>{S.answers[q.id]=e.target.value;save()};
- function nav(d){S.qIndex=Math.max(0,Math.min(bank.length-1,idx+d));save();renderQA()} $("#prevQ").onclick=()=>nav(-1);$("#nextQ").onclick=()=>nav(1);
+ function nav(d){const ni=Math.max(0,Math.min(bank.length-1,idx+d));setCurrentQuestion(bank[ni].id);renderQA()} $("#prevQ").onclick=()=>nav(-1);$("#nextQ").onclick=()=>nav(1);
  $("#masterQ").onclick=()=>{toggle(S.mastered,q.id);save();renderQA()};$("#markWrong").onclick=()=>{toggle(S.wrong,q.id);save();renderQA()};
- $("#qChapter").onchange=e=>{if(e.target.value!=="all"){S.qIndex=bank.findIndex(x=>x.chapter===Number(e.target.value));save();renderQA()}};
+ $("#favoriteQ").onclick=()=>{toggle(S.favorite,q.id);save();renderQA()};
+ $("#qJump").onchange=e=>{setCurrentQuestion(e.target.value);renderQA()};
+ $("#toggleDirectory").onclick=$("#openDirectory").onclick=()=>{S.qaDirectoryOpen=!S.qaDirectoryOpen;save();renderQA()};
+ $$("[data-dir-ch]").forEach(b=>b.onclick=()=>{const target=bank.find(x=>x.chapter===Number(b.dataset.dirCh));if(target){setCurrentQuestion(target.id);renderQA()}});
+ $$("[data-question-id]").forEach(b=>b.onclick=()=>{setCurrentQuestion(b.dataset.questionId);renderQA()});
  $("#compare").onclick=()=>compareAnswer(q);$("#answerInput").onkeydown=e=>{if((e.ctrlKey||e.metaKey)&&e.key==="Enter")compareAnswer(q)};
+}
+
+function renderAudit(){
+ const all=window.QUESTION_AUDIT||[], chapter=S.audit.chapter, error=S.audit.error, page=String(S.audit.page||"").trim();
+ const errorTypes=[...new Set(all.flatMap(x=>x.errors))].sort();
+ const rows=all.filter(x=>(chapter==="all"||String(x.chapter)===String(chapter))&&(error==="all"||x.errors.includes(error))&&(!page||x.pages.includes(Number(page))));
+ const summary=window.QUESTION_QUALITY_SUMMARY||{};
+ app.innerHTML=shell("题库审查","开发检查页面：来源未核实、字段残片和答案碎片不会进入教授问答或考试。",`
+ <section class="audit-summary"><article><span>原始题目</span><b>${summary.raw||all.length}</b></article><article><span>已验证并启用</span><b>${summary.active||0}</b></article><article><span>已隔离</span><b>${summary.rejected||0}</b></article></section>
+ <div class="audit-filters"><label>章节<select id="auditChapter"><option value="all">全部</option>${LD.chapters.map(c=>`<option value="${c.n}" ${String(chapter)===String(c.n)?"selected":""}>LS${String(c.n).padStart(2,"0")}</option>`).join("")}</select></label><label>错误类型<select id="auditError"><option value="all">全部</option>${errorTypes.map(x=>`<option value="${x}" ${error===x?"selected":""}>${x}</option>`).join("")}</select></label><label>PDF页码<input id="auditPage" inputmode="numeric" value="${esc(page)}" placeholder="例如 29"></label><span>${rows.length} 条</span></div>
+ <div class="audit-table"><table><thead><tr><th>ID</th><th>章节</th><th>页码</th><th>问题</th><th>答案摘要</th><th>状态</th><th>错误原因</th></tr></thead><tbody>${rows.map(x=>`<tr><td>${esc(x.legacyId||"—")}</td><td>LS${String(x.chapter).padStart(2,"0")}</td><td>${x.pages.join(", ")||"—"}</td><td>${esc(x.question)}</td><td>${esc(x.answer.slice(0,150))}</td><td><span class="${x.errors.length?"review":"verified"}">${x.status}</span></td><td>${x.errors.map(e=>`<code>${e}</code>`).join(" ")||"—"}</td></tr>`).join("")}</tbody></table></div>`);
+ $("#auditChapter").onchange=e=>{S.audit.chapter=e.target.value;save();renderAudit()};
+ $("#auditError").onchange=e=>{S.audit.error=e.target.value;save();renderAudit()};
+ $("#auditPage").oninput=e=>{S.audit.page=e.target.value;save();clearTimeout(window.auditTimer);window.auditTimer=setTimeout(renderAudit,220)};
 }
 function toggle(a,x){let i=a.indexOf(x);i<0?a.push(x):a.splice(i,1)}
 function compareAnswer(q){
@@ -147,5 +194,6 @@ function whyExam(c,l){let ci=S.why.chain||0,topics=LD.whyChains.map((x,i)=>[x,i]
 function statsView(){let per=LD.chapters.map(c=>{let qs=bank.filter(q=>q.chapter===c.n),w=qs.filter(q=>S.wrong.includes(q.id)).length,m=qs.filter(q=>S.mastered.includes(q.id)).length;return {...c,w,m,total:qs.length,weak:w?Math.round(w/(w+m||1)*100):0}}).sort((a,b)=>b.weak-a.weak),labsDone=LD.experiments.filter(e=>(S.lab[e.id]?.step||0)>=e.steps.length).length;return `<section class="stats"><div class="stats-top"><article><span>已掌握</span><b>${S.mastered.length}</b><small>/ ${bank.length}</small></article><article><span>错题</span><b>${S.wrong.length}</b><small>需要回看</small></article><article><span>实验完成</span><b>${labsDone}</b><small>/ ${LD.experiments.length}</small></article></div><h2>薄弱章节</h2>${per.map(x=>`<button data-stat-ch="${x.n}"><span>LS${String(x.n).padStart(2,"0")} · ${x.t}</span><div><i style="width:${x.weak}%"></i></div><b>${x.w} 错题 · ${x.m} 掌握</b></button>`).join("")}</section>`}
 
 $("#resetAll").onclick=()=>{if(confirm("删除所有答案、进度、错题和实验记录？")){localStorage.removeItem(KEY);location.reload()}};
-$("#bankSummary").textContent=`${bank.length} Fragen · LS01–LS10 · 基础到教授追问 · 离线保存`;
+window.addEventListener("hashchange",()=>{const m=location.hash.match(/^#\/chapter\/LS(\d{2})\/question\/(LS\d{2}-Q\d{3})$/i);if(m&&bank.some(q=>q.id===m[2].toUpperCase())){S.mode="qa";S.currentQuestionId=m[2].toUpperCase();S.chapter=Number(m[1]);save();render()}});
+$("#bankSummary").textContent=`${bank.length} 已验证 Fragen · LS01–LS10 · ${window.QUESTION_QUALITY_SUMMARY?.rejected||0} 道待审查题已隔离 · 本地保存`;
 render();
