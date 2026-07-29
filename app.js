@@ -72,7 +72,7 @@ function renderQA(){
  let idx=bank.indexOf(q), mastered=S.mastered.includes(q.id), wrong=S.wrong.includes(q.id), favorite=S.favorite.includes(q.id);
  if(S.currentQuestionId!==q.id)setCurrentQuestion(q.id,{replace:true});
  const chapterQuestions=bank.filter(x=>x.chapter===q.chapter), chapterPos=chapterQuestions.findIndex(x=>x.id===q.id);
- const sections=[["标准答案 · Musterantwort",q.answer],["中文解析 · Erklärung",q.analysis],["结构式/反应路径",q.visual],["为什么老师问",q.why],["如果不这样做",q.ifNot],["关联章节",q.links]];
+ const sections=[["标准答案 · Musterantwort",q.answer],["标准答案中文翻译 · Chinesische Übersetzung",q.answerZh],["中文解析 · Erklärung",q.analysis],["结构式/反应路径",q.visual],["为什么老师问",q.why],["如果不这样做",q.ifNot],["关联章节",q.links]];
  app.innerHTML=shell("教授问答模式","一页一题。先用德语回答，再逐层打开原因与追问。",`
  <div class="qa-toolbar"><button id="toggleDirectory">问题目录</button><label>跳转<select id="qJump">${chapterQuestions.map((x,i)=>`<option value="${x.id}" ${x.id===q.id?"selected":""}>${i+1}. ${esc(questionShortTitle(x))}</option>`).join("")}</select></label><span>LS${String(q.chapter).padStart(2,"0")} · 第 ${chapterPos+1} / ${chapterQuestions.length} 题</span><div class="mini-progress"><i style="width:${S.mastered.length/bank.length*100}%"></i></div></div>
  <div class="qa-workspace ${S.qaDirectoryOpen?"":"directory-closed"}"><aside class="question-directory">
